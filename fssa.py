@@ -98,6 +98,7 @@ for date in pre2010speeches.keys():
         pre2010data.loc[i, 'Date'] = date
         pre2010data.loc[i, 'Token'] = pre2010speeches[date][j]
         i += 1
+pre2010data['Datestamp'] = [pd.Timestamp(date) for date in pre2010data['Date']]
 pre2010data.sort('Date')
 # convert to timestamp at some point
 pre2010data.index = range(len(pre2010data))
