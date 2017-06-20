@@ -11,7 +11,8 @@ import pandas as pd
 #speechurl = 'https://www.federalreserve.gov/feeds/speeches.xml'
 #pre2010 = 'https://www.federalreserve.gov/newsevents/speech/2010speech.htm'
 pre2010dates = [str(date) for date in range(1996, 2011)]
-post2010url = 'https://www.federalreserve.gov/newsevents/speeches.htm'
+post2010dates = [str(date) for date in range(2011, 2018)]
+#post2010url = 'https://www.federalreserve.gov/newsevents/speeches.htm'
 urlstem = 'https://www.federalreserve.gov'
 tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
 stemmer = PorterStemmer()
@@ -33,8 +34,8 @@ for date in pre2010dates:
     pre2010content[date] = page.content
     print('fetched content for {}'.format(date))
 
-pre2010links = {}
 # get content links for pre-2010 speech data
+pre2010links = {}
 for date in pre2010content.keys():
     soup = BeautifulSoup(pre2010content[date], 'lxml')
     # ul id='speechIndex' is what we want
@@ -99,10 +100,95 @@ for date in pre2010speeches.keys():
         pre2010data.loc[i, 'Token'] = pre2010speeches[date][j]
         i += 1
 pre2010data['Datestamp'] = [pd.Timestamp(date) for date in pre2010data['Date']]
-pre2010data.sort('Date')
-# convert to timestamp at some point
+pre2010data.sort_values('Datestamp', inplace = True)
 pre2010data.index = range(len(pre2010data))
 pre2010data.to_csv('C:/Users/Alex/Dropbox/Projects/fssa/pre2010data.csv')
+
+# post-2010 data
+post2010content = {}
+for date in post2010dates:
+    # loop through url with date appended, then parse links and extract content
+    dateurl = 'https://www.federalreserve.gov/newsevents/speech/{}-speeches.htm'.format(date)
+    page = requests.get(dateurl)
+    post2010content[date] = page.content
+    print('fetched content for {}'.format(date))
+
+# get content links for post-2010 speech data
+post2010links = {}
+for date in post2010content.keys():
+    soup = BeautifulSoup(post2010content[date], 'html.parser')
+    # need to find tag for date info and link to speech content
+    # we need divs where the class ends with eventlist__event and eventlist__time
+    timere = re.compile('.+eventlist__time')
+    times = soup.find_all('div', attrs = {'class': timere})
+    timelist = []
+    eventre = re.compile('.+eventlist__event')
+    events = soup.find_all('div', attrs = {'class': eventre})
+    eventlinks = []
+    for time in times:
+        timelist.append(time.time.get_text())
+    for event in events:
+        eventlinks.append(event.a.get('href'))
+    assert len(timelist) == len(eventlinks)
+    for i in range(len(timelist)):
+        post2010links[timelist[i]] = urlstem + eventlinks[i]
+        print('Recorded url for speech "{}"'.format(events[i].a.get_text()))
+    print('Finished parsing links for {}'.format(date))
+
+# parse content links for post-2010 speech data
+post2010speeches = {}
+for k in post2010links.keys():
+    page = requests.get(post2010links[k])
+    soup = BeautifulSoup(page.content, 'html.parser')
+    # "dirty" text, split into sentences
+    speech = tokenizer.tokenize(soup.body.get_text())
+    # remove header and footer boilerplate (bootleg)
+    cleaned = speech[4:-1]
+    # clean the text
+    cleaned = [re.sub('\'|-', ' ', sent) for sent in cleaned]
+    punct = re.compile('[%s]' % re.escape(string.punctuation))
+    cleaned = [re.sub(punct, '', sent) for sent in cleaned]
+    cleaned = [re.sub('\s+', ' ', sent) for sent in cleaned]
+    cleaned = [re.sub('\d', '', sent) for sent in cleaned]
+    # lowercase everything
+    cleaned = [sent.lower() for sent in cleaned]
+    # remove stopwords
+    for i in range(len(cleaned)):
+        sent = cleaned[i]
+        clean_sent = []
+        for word in sent.split():
+            if word not in stopwords.words('english'):
+                clean_sent.append(word)
+        clean_sent = ' '.join(clean_sent)
+        cleaned[i] = clean_sent
+    # stem words
+    cleaned = [' '.join([stemmer.stem(word) for word in sent.split()]) for sent in cleaned]
+    # elimintate a couple other things
+    better = []
+    for i in range(len(cleaned)):
+        if cleaned[i].startswith('return text') or cleaned[i].startswith('see ') \
+            or cleaned[i] == '' or (len(cleaned[i]) < 12) and cleaned[i].endswith('pp'):
+            continue
+        else:
+            better.append(cleaned[i])
+    # index list of cleaned speech text tokens into dict
+    post2010speeches[k] = better
+    print('Cleaned speech data for {}'.format(k))
+
+# make cleaned data portable
+post2010data = pd.DataFrame(columns = ['Date', 'Token'])
+i = 0
+for date in post2010speeches.keys():
+    for j in range(len(post2010speeches[date])):
+        post2010data.loc[i, 'Date'] = date
+        post2010data.loc[i, 'Token'] = post2010speeches[date][j]
+        i += 1
+post2010data['Datestamp'] = [pd.Timestamp(date) for date in post2010data['Date']]
+post2010data.sort_values('Datestamp', inplace = True)
+post2010data.index = range(len(post2010data))
+post2010data.to_csv('C:/Users/Alex/Dropbox/Projects/fssa/post2010data.csv')
+
+
 
 # need to do a similar analysis of tags to look for the part containing the speech body
 # also may need to use re to strip out things like reference section, etc.
