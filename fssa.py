@@ -48,3 +48,16 @@ for date in pre2010content.keys():
     print('Finished parsing links for {}'.format(date))
 
 # parse content links for pre-2010 speech data
+# need to do a similar analysis of tags to look for the part containing the speech body
+# also may need to use re to strip out things like reference section, etc.
+# once we have the body, clean it (not necessarily in correct order):
+    # tokenize by sentences
+    # strip excess whitespace
+    # lowercase
+    # remove stopwords
+    # stem words
+# once we have lists of sentences per speech, use vader to get sentiment
+# average across sentences (maybe?) for each day -- think about this more
+# pack into dataframe with date index and a column for sentiment score for that day's speech
+
+# then do this for post-2010 speeches - trickier html scheme for this
