@@ -102,7 +102,6 @@ for date in pre2010speeches.keys():
 pre2010data['Datestamp'] = [pd.Timestamp(date) for date in pre2010data['Date']]
 pre2010data.sort_values('Datestamp', inplace = True)
 pre2010data.index = range(len(pre2010data))
-pre2010data.to_csv('C:/Users/Alex/Dropbox/Projects/fssa/pre2010data.csv')
 
 # post-2010 data
 post2010content = {}
@@ -185,10 +184,11 @@ for date in post2010speeches.keys():
         i += 1
 post2010data['Datestamp'] = [pd.Timestamp(date) for date in post2010data['Date']]
 post2010data.sort_values('Datestamp', inplace = True)
-post2010data.index = range(len(post2010data))
-post2010data.to_csv('C:/Users/Alex/Dropbox/Projects/fssa/post2010data.csv')
+post2010data.index = range(len(pre2010data), len(pre2010data) + len(post2010data))
 
-
+# combine data
+speechdata = pre2010data.append(post2010data)
+speechdata.to_csv('C:/Users/Alex/Dropbox/Projects/fssa/speechdata.csv')
 
 # need to do a similar analysis of tags to look for the part containing the speech body
 # also may need to use re to strip out things like reference section, etc.
