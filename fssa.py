@@ -188,7 +188,36 @@ post2010data.index = range(len(pre2010data), len(pre2010data) + len(post2010data
 
 # combine data
 speechdata = pre2010data.append(post2010data)
+
+# get compound sentiment
+vaderanalyzer = SentimentIntensityAnalyzer()
+speechdata['Sentiment'] = [vaderanalyzer.polarity_scores(speechdata['Token'][i])['compound'] \
+                            for i in range(len(speechdata))]
+
 speechdata.to_csv('C:/Users/Alex/Dropbox/Projects/fssa/speechdata.csv')
+
+# quick viz
+import matplotlib.pyplot as plt
+plt.hist(speechdata['Sentiment'], bins = 50)
+plt.show()
+
+len(speechdata[speechdata['Sentiment'] == 0])
+len(speechdata)
+# so approximately 35% of sentence tokens have a 0 sentiment index - maybe best to throw these away
+signal = speechdata[speechdata['Sentiment'] != 0]
+signal.index = range(len(signal))
+
+# average by date for days where we are getting some signal (probably some better method we should use)
+groupedts = signal.groupby('Datestamp').mean()
+groupedts.index = pd.DatetimeIndex(groupedts.index)
+
+# quick viz of forward-filled timeseries for available dates; no decay function
+groupedts.asfreq('B').ffill().plot()
+plt.show()
+
+
+
+# NOTES
 
 # need to do a similar analysis of tags to look for the part containing the speech body
 # also may need to use re to strip out things like reference section, etc.
