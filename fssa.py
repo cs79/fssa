@@ -214,7 +214,17 @@ groupedts.index = pd.DatetimeIndex(groupedts.index)
 # quick viz of forward-filled timeseries for available dates; no decay function
 groupedts.asfreq('B').ffill().plot()
 plt.show()
-
+# alongside standardized S&P 500 historical adjusted closing prices / volumes
+sp = pd.read_csv('SP500historical.csv', header = 0, index_col = 0)
+sp = sp[['Adj Close', 'Volume']]
+sp.rename(columns = lambda x: 'S&P 500 - ' + x, inplace = True)
+sp['S&P 500 - Adj Close'] = sp['S&P 500 - Adj Close'] / sp['S&P 500 - Adj Close'].max()
+sp['S&P 500 - Volume'] = sp['S&P 500 - Volume'] / sp['S&P 500 - Volume'].max()
+sp = sp.join(groupedts, how = 'outer')
+sp.ffill().plot()
+plt.show()
+# nothing immediately clear but we could do something like better transforms
+# (e.g. GARCH for S&P prices), VAR Granger test, etc. and see if we find anything more interesting
 
 
 # NOTES
