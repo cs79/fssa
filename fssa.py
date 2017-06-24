@@ -8,12 +8,10 @@ from nltk.stem import PorterStemmer
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 import pandas as pd
 from textblob import TextBlob
+import pickle
 
-#speechurl = 'https://www.federalreserve.gov/feeds/speeches.xml'
-#pre2010 = 'https://www.federalreserve.gov/newsevents/speech/2010speech.htm'
 pre2010dates = [str(date) for date in range(1996, 2011)]
 post2010dates = [str(date) for date in range(2011, 2018)]
-#post2010url = 'https://www.federalreserve.gov/newsevents/speeches.htm'
 urlstem = 'https://www.federalreserve.gov'
 tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
 stemmer = PorterStemmer()
@@ -101,7 +99,14 @@ for k in pre2010links.keys():
     pre2010speeches[k] = cleaned
     print('Cleaned speech data for {}'.format(k))
 
+# serialize so that we don't have to pull this again if it crashes
+with open('C:/Users/Alex/Dropbox/Projects/fssa/pre2010.pickle', 'wb') as f:
+    pickle.dump(pre2010speeches, f, pickle.HIGHEST_PROTOCOL)
+with open('C:/Users/Alex/Dropbox/Projects/fssa/pre2010_NOSTEM.pickle', 'wb') as f:
+    pickle.dump(NOSTEM_pre2010, f, pickle.HIGHEST_PROTOCOL)
+
 # make cleaned data portable
+# pretty sure this is incredibly inefficient
 pre2010data = pd.DataFrame(columns = ['Date', 'Token'])
 i = 0
 for date in pre2010speeches.keys():
@@ -114,6 +119,27 @@ pre2010data.sort_values('Datestamp', inplace = True)
 pre2010data.index = range(len(pre2010data))
 
 # TODO: NOSTEM version of this file
+pre2010data_NOSTEM = pd.DataFrame(columns = ['Date', 'Token'])
+i = 0
+for date in NOSTEM_pre2010.keys():
+    for j in range(len(NOSTEM_pre2010[date])):
+        pre2010data_NOSTEM.loc[i, 'Date'] = date
+        pre2010data_NOSTEM.loc[i, 'Token'] = NOSTEM_pre2010[date][j]
+        i += 1
+    # debug
+    print('Finished parsing data for {}'.format(date))
+pre2010data_NOSTEM['Datestamp'] = [pd.Timestamp(date) for date in pre2010data_NOSTEM['Date']]
+pre2010data_NOSTEM.sort_values('Datestamp', inplace = True)
+pre2010data_NOSTEM.index = range(len(pre2010data_NOSTEM))
+pre2010data_NOSTEM['Speaker'] = [pre2010speakers[date] for date in pre2010data_NOSTEM['Date']]
+
+# TODO extract a couple speeches as examples to be hand-annotated
+# can use pre2010speakers as a dataframe to look up speakers for the pre2010data_NOSTEM df
+# then pull out a few days worth where the speaker was interesting, and email to Warren, Kevin, Harrison
+samples = pre2010data_NOSTEM[pre2010data_NOSTEM.Speaker == 'Chairman Ben S. Bernanke']
+sample1 = samples[samples['Date'] == 'May 15, 2007']
+sample2 = samples[samples['Date'] == 'November 14, 2008']
+sample1.append(sample2).to_csv('C:/Users/Alex/Dropbox/Projects/fssa/sample_bernanke_speeches.csv')
 
 # post-2010 data
 post2010content = {}
@@ -178,12 +204,6 @@ for k in post2010links.keys():
                 clean_sent.append(word)
         clean_sent = ' '.join(clean_sent)
         cleaned[i] = clean_sent
-    NOSTEM_post2010[k] = cleaned.copy()
-
-    # TODO: reorder some of this cleaning to eliminate problem fragments in nostem version
-
-    # stem words
-    cleaned = [' '.join([stemmer.stem(word) for word in sent.split()]) for sent in cleaned]
     # elimintate a couple other things
     better = []
     for i in range(len(cleaned)):
@@ -192,8 +212,11 @@ for k in post2010links.keys():
             continue
         else:
             better.append(cleaned[i])
+    NOSTEM_post2010[k] = better.copy()
+    # stem words
+    cleaned = [' '.join([stemmer.stem(word) for word in sent.split()]) for sent in better]
     # index list of cleaned speech text tokens into dict
-    post2010speeches[k] = better
+    post2010speeches[k] = cleaned
     print('Cleaned speech data for {}'.format(k))
 
 # make cleaned data portable
@@ -209,10 +232,24 @@ post2010data.sort_values('Datestamp', inplace = True)
 post2010data.index = range(len(pre2010data), len(pre2010data) + len(post2010data))
 
 # TODO: NOSTEM version of this file
+post2010data_NOSTEM = pd.DataFrame(columns = ['Date', 'Token'])
+i = 0
+for date in NOSTEM_post2010.keys():
+    for j in range(len(NOSTEM_post2010[date])):
+        post2010data_NOSTEM.loc[i, 'Date'] = date
+        post2010data_NOSTEM.loc[i, 'Token'] = NOSTEM_post2010[date][j]
+        i += 1
+    # debug
+    print('Finished parsing data for {}'.format(date))
+post2010data_NOSTEM['Datestamp'] = [pd.Timestamp(date) for date in post2010data_NOSTEM['Date']]
+post2010data_NOSTEM.sort_values('Datestamp', inplace = True)
+post2010data_NOSTEM['Speaker'] = [post2010speakers[date] for date in post2010data_NOSTEM['Date']]
+post2010data_NOSTEM.index = range(len(pre2010data_NOSTEM), len(pre2010data_NOSTEM) + len(post2010data_NOSTEM))
 
 # combine data
 speechdata = pre2010data.append(post2010data)
 # TODO: NOSTEM version of this file
+speechdata_NOSTEM = pre2010data_NOSTEM.append(post2010data_NOSTEM)
 
 # get links dataframe
 links = pd.DataFrame()
@@ -246,13 +283,22 @@ speakers.to_csv('C:/Users/Alex/Dropbox/Projects/fssa/speakers.csv')
 
 # get compound sentiment
 vaderanalyzer = SentimentIntensityAnalyzer()
-speechdata['Sentiment'] = [vaderanalyzer.polarity_scores(speechdata['Token'][i])['compound'] \
+speechdata['Sentiment_Vader'] = [vaderanalyzer.polarity_scores(speechdata['Token'][i])['compound'] \
                             for i in range(len(speechdata))]
 
 # compare with textblob sentiment
-speechdata['Sentiment_TB'] = [TextBlob(i).sentiment.polarity for i in speechdata['Token']]
+speechdata['Sentiment_TextBlob'] = [TextBlob(i).sentiment.polarity for i in speechdata['Token']]
 
-speechdata.to_csv('C:/Users/Alex/Dropbox/Projects/fssa/speechdata.csv')
+# NOSTEM version
+# get compound sentiment
+vaderanalyzer = SentimentIntensityAnalyzer()
+speechdata_NOSTEM['Sentiment_Vader'] = [vaderanalyzer.polarity_scores(speechdata_NOSTEM['Token'][i])['compound'] \
+                            for i in range(len(speechdata_NOSTEM))]
+
+# compare with textblob sentiment
+speechdata_NOSTEM['Sentiment_TextBlob'] = [TextBlob(i).sentiment.polarity for i in speechdata_NOSTEM['Token']]
+
+speechdata_NOSTEM.to_csv('C:/Users/Alex/Dropbox/Projects/fssa/speechdata_NOSTEM.csv')
 
 # quick viz
 import matplotlib.pyplot as plt
