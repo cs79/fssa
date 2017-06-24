@@ -313,9 +313,6 @@ speechdata_NOSTEM['Speaker'] = speechdata_NOSTEM['Speaker'].apply(lambda x: re.s
 
 speechdata_NOSTEM.to_csv('C:/Users/Alex/Dropbox/Projects/fssa/speechdata_NOSTEM.csv')
 
-with open('C:/Users/Alex/Dropbox/Projects/fssa/speechdata_NOSTEM.pickle', 'wb') as f:
-    pickle.dump(speechdata_NOSTEM, f, pickle.HIGHEST_PROTOCOL)
-
 # quick viz
 import matplotlib.pyplot as plt
 plt.hist(speechdata['Sentiment'], bins = 50)
@@ -327,9 +324,16 @@ len(speechdata)
 signal = speechdata[speechdata['Sentiment'] != 0]
 signal.index = range(len(signal))
 
+signal_NOSTEM = speechdata_NOSTEM[speechdata_NOSTEM['Sentiment_Vader'] != 0]
+signal_NOSTEM.index = range(len(signal_NOSTEM))
+signal_NOSTEM.drop('Sentiment_TextBlob', inplace = True, axis = 1)
+
 # average by date for days where we are getting some signal (probably some better method we should use)
 groupedts = signal.groupby('Datestamp').mean()
 groupedts.index = pd.DatetimeIndex(groupedts.index)
+
+groupedts_NOSTEM = signal_NOSTEM.groupby('Datestamp').mean()
+groupedts_NOSTEM.index = pd.DatetimeIndex(groupedts_NOSTEM.index)
 
 # quick viz of forward-filled timeseries for available dates; no decay function
 groupedts.asfreq('B').ffill().plot()
